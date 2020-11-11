@@ -192,3 +192,45 @@ legend("topleft", names(X)[1:5], lty=1, col=1:5, horiz=TRUE,
        bty="n", cex=0.5)
 legend("bottomright", names(X)[6:9], lty=1, col=6:9, horiz=TRUE, 
        bty="n", cex=0.5)
+
+# Exercise 1
+libray(dplyr)
+
+wireRaw <- read.csv('http://bobby.gramacy.com/surrogates/wire.csv')
+
+wireUnitCoefs <- sapply(names(wireRaw), function(selCol){
+  linCoef <- min(wireRaw[[selCol]])
+  angCoef <- max(wireRaw[[selCol]] - linCoef)
+  return(c(linCoef, angCoef))
+}) %>% data.frame()
+row.names(wireUnitCoefs) <- c('linCoef', 'angCoef')
+
+wireUnit <- sapply(names(wireRaw), function(selCol){
+  return((wireRaw[[selCol]] - wireUnitCoefs['linCoef', selCol]) / wireUnitCoefs['angCoef', selCol])
+}) %>% data.frame()
+
+wireZeroOne <- sapply(names(wireRaw), function(selCol){
+  linMean <- mean(wireRaw[[selCol]])
+  angCoef <- max(linMean - min(wireRaw[[selCol]]), max(wireRaw[[selCol]]) - linMean)
+  return((wireRaw[[selCol]] - linMean) / angCoef)
+}) %>% data.frame()
+
+wireY <- 'pstren'
+pstren <- wireRaw[[wireY]]
+wireX <- names(wireRaw)[!(names(wireRaw) %in% wireY)]
+
+wireFit.lm <- lm(pstren ~ ., data = data.frame(pstren, wireUnit[wireX]))
+wireFit.qlm <- lm(pstren ~ . ^ 2, data = data.frame(pstren, wireUnit[wireX]))
+wireFit.lmstep <- step(wireFit.lm,
+                       scope = formula(wireFit.qlm),
+                       direction = "both", 
+                       k = log(length(pstren)))
+
+
+newValues <- data.frame(t(c(6, 20, 30, 90, 2, 2)))
+names(newValues) <- wireX
+newValuesUnit <- sapply(names(newValues), function(selCol){
+  return((newValues[[selCol]] - wireUnitCoefs['linCoef', selCol]) / wireUnitCoefs['angCoef', selCol])
+}) %>% t() %>% data.frame()
+
+wirePred <- predict(wireFit.lm, newdata = newValuesUnit, interval  = 'confidence')
