@@ -103,6 +103,7 @@ image(x1, x2, eta2s, col=heat.colors(128))
 contour(x1, x2, eta2s, add=TRUE)
 
 # Aircraft wing weight example
+par(mfrow=c(1,1))
 wingwt <- function(Sw=0.48, Wfw=0.4, A=0.38, L=0.5, q=0.62, l=0.344, 
                    Rtc=0.4, Nz=0.37, Wdg=0.38)
 {
@@ -194,7 +195,7 @@ legend("bottomright", names(X)[6:9], lty=1, col=6:9, horiz=TRUE,
        bty="n", cex=0.5)
 
 # Exercise 1
-libray(dplyr)
+library(dplyr)
 
 wireRaw <- read.csv('http://bobby.gramacy.com/surrogates/wire.csv')
 
@@ -295,9 +296,68 @@ piston <- function(xx)
   return(C)
 }
 
-n <- 1000
-pistonVars <- data.frame(randomLHS(n, 7))
+params <- data.frame(M = c(45, 30, 60),
+                     S = c(0.0125, 0.005, 0.02),
+                     V0 = c(0.006, 0.002, 0.01),
+                     k = c(3000, 1000, 5000),
+                     P0 = c(100000, 90000, 110000),
+                     Ta = c(293, 290, 296),
+                     T0 = c(350, 340, 360),
+                     row.names = c('base', 'min', 'max')) %>%
+  t() %>% as.data.frame() %>%
+  mutate(scale = max - min)
+
+n <- 10000
+
+pistonVarsUnit <- rbind(rep(0, 7), randomLHS(n, 7), rep(1, 7))
+pistonVars <- (t(pistonVarsUnit) * params$scale + params$min) %>%
+  t() %>% as.data.frame()
 pistonRes <- piston(pistonVars)
 synthPiston <- data.frame(pistonVars, pistonRes)
 names(synthPiston) <- c('M', 'S', 'V0', 'k', 'P0', 'Ta', 'T0', 'objFun')
-# write.csv(synthPiston, 'synthPiston.csv')
+write.csv(synthPiston, 'synthPiston.csv')
+
+library(ggplot2)
+
+synthPiston %>%
+  ggplot(aes(M, S, z = objFun)) +
+  geom_density_2d_filled()
+
+synthPiston %>%
+  ggplot(aes(S, V0, z = objFun)) +
+  geom_density_2d_filled()
+
+synthPiston %>%
+  ggplot(aes(M, V0, z = objFun)) +
+  geom_density_2d_filled()
+
+synthPiston %>%
+  ggplot(aes(T0, k, z = objFun)) +
+  geom_density_2d_filled()
+
+# build gpe model
+piston_fit.gp <- newGPsep(synthPiston[,-8], synthPiston[,8], 2, 1e-6, dK=TRUE)
+# piston_mle <- mleGPsep(piston_fit.gp)
+
+pistonPredTrain <- predGPsep(piston_fit.gp, synthPiston[,-8], lite=TRUE)
+plot(x = synthPiston$objFun, y = pistonPredTrain$mean)
+
+# create test set
+pistonVarsTestUnit <- data.frame(randomLHS(n/5, 7))
+pistonVarsTest <- (t(pistonVarsTestUnit) * params$scale + params$min) %>%
+  t() %>% as.data.frame()
+pistonResTest <- piston(pistonVarsTest)
+synthPistonTest <- data.frame(pistonVarsTest, pistonResTest)
+names(synthPistonTest) <- c('M', 'S', 'V0', 'k', 'P0', 'Ta', 'T0', 'objFun')
+
+pistonPredGP <- predGPsep(piston_fit.gp, synthPistonTest[,-8], lite=TRUE)
+
+plot(x = synthPistonTest$objFun, y = pistonPredGP$mean)
+
+# how does the rf compare
+library(randomForest)
+
+piston_fit.rf <- randomForest(x = synthPiston[,-8], y = synthPiston[,8])
+pistonPredRF <- predict(piston_fit.rf, synthPistonTest[,-8])
+plot(x = synthPistonTest$objFun, y = pistonPredRF)
+
