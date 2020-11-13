@@ -411,31 +411,21 @@ goldpr <- function(xx)
   return(y)
 }
 
-n <- 10
-expand.grid(0:n, 0:n) / n
-
-goldprSynthVars <- data.frame(rbind(rep(0, 2), randomLHS(n, 2), rep(1, 2)))
+n <- 50
+goldprSynthVars<- data.frame(expand.grid(0:n, 0:n) / n)
 goldprSynthObjFun <- goldpr(goldprSynthVars)
 goldprSynth <- data.frame(goldprSynthVars, goldprSynthObjFun)
 names(goldprSynth) <- c('x1', 'x2', 'objFun')
 
 goldprSynth %>%
-  ggplot(aes(x = x1, y = x2, z = objFun)) +
-  geom_density_2d() +
+  ggplot(aes(x1, x2, z = objFun)) +
+  geom_contour_filled(alpha = .25) +
   geom_text(aes(label = round(objFun, 1),
                 colour = objFun),
             check_overlap = TRUE,
             size = 3)
 
 goldprSynth %>%
-  ggplot(aes(x1, x2, z = objFun)) +
-  geom_contour() +
-  geom_text(aes(label = round(objFun, 1),
-                colour = objFun),
-            check_overlap = TRUE,
-            size = 3)
-
-goldprSynt %>%
   filter(objFun == min(objFun))
 
 library(optimx)
@@ -444,12 +434,17 @@ randGridSearch <- rbind(rep(0, 2), randomLHS(100, 2), rep(1, 2))
 
 randGridSearchRes <- sapply(1:nrow(randGridSearch), function(grdRow) {
   stPar <- randGridSearch[grdRow,]
-  optRes <- optimx(stPar, goldpr, lower = 0, upper = 1)
+  optRes <- optimx(stPar, goldpr, lower = c(0, 0), upper = c(1, 1))
   c(stPar, optRes$value)
   return(c(stPar, as.numeric(optRes[, c('p1', 'p2', 'value')])))
-}) %>% t()
+}) %>% t() %>%
+  as.data.frame()
 
-randGridSearchRes
+names(randGridSearchRes) <- c('stParam1', 'stParam2', 'optParam1', 'optParam2', 'optObjFun')
+
+randGridSearchRes %>%
+  select(optParam1, optParam2, optObjFun) %>%
+  distinct()
 
 constraintFun <- function(xx)
 {
@@ -468,27 +463,55 @@ goldprSynth2 <- goldprSynth2 %>%
   mutate(constrBin = case_when(constr < 0 ~ -1,
                               constr == 0 ~ 0,
                               constr > 0 ~ 1))
+goldprSynth2 %>%
+  ggplot(aes(x1, x2, z = objFun)) +
+  geom_raster(aes(fill = constrBin), alpha = 0.25) +
+  geom_contour(colour = 'white', bins = n * 3)
+
+library(nloptr)
+
+optSol1 <- nloptr(x0 = c(1, 1),
+                  eval_f = goldpr,
+                  lb = c(0, 0),
+                  ub = c(1, 1),
+                  opts = list("algorithm"="NLOPT_GN_ISRES",
+                              "xtol_rel"=1.0e-8))
+
+goldprSynth %>%
+  filter(objFun == min(objFun))
+
+optSol1$solution
+goldpr(optSol1$solution)
+
+optSol1_fineTune <- optimx(optSol1$solution, goldpr, lower = c(0, 0), upper = c(1, 1))
+
+optSol1_fineTune$p1
+optSol1_fineTune$p2
+optSol1_fineTune$value
+
+optSol2 <- nloptr(x0 = c(1, 1),
+                  eval_f = goldpr,
+                  lb = c(0, 0),
+                  ub = c(1, 1),
+                  eval_g_ineq = constraintFun,
+                  opts = list("algorithm"="NLOPT_GN_ISRES",
+                              "xtol_rel"=1.0e-8))
+
+
 
 goldprSynth2 %>%
-  ggplot(aes(x = x1, y = x2, z = objFun)) +
-  geom_density_2d() +
-  geom_text(aes(label = round(objFun, 1),
-                colour = objFun),
-            check_overlap = TRUE,
-            size = 3) +
-  geom_raster(aes(fill = constrBin), interpolate = TRUE)
+  filter(constr < 0) %>%
+  filter(objFun == min(objFun))
 
+optSol2$solution
+goldpr(optSol2$solution)
 
-goldprSynth2 %>%
-  ggplot(aes(x = x1, y = x2)) +
-  geom_density_2d() +
-  geom_text(aes(label = round(objFun, 1),
-                colour = objFun),
-            check_overlap = TRUE,
-            size = 3)
-
-
-
-goldprSynth2 %>%
-  ggplot() +
-  geom_tile()
+optSol2_fineTune <- nloptr(x0 = optSol2$solution,
+                           eval_f = goldpr,
+                           lb = c(0, 0),
+                           ub = c(1, 1),
+                           eval_g_ineq = constraintFun,
+                           opts = list("algorithm"="NLOPT_LN_COBYLA",
+                                       "xtol_rel"=1.0e-8))
+optSol2_fineTune$solution
+goldpr(optSol2_fineTune$solution)
