@@ -361,3 +361,134 @@ piston_fit.rf <- randomForest(x = synthPiston[,-8], y = synthPiston[,8])
 pistonPredRF <- predict(piston_fit.rf, synthPistonTest[,-8])
 plot(x = synthPistonTest$objFun, y = pistonPredRF)
 
+# Exercise 3
+goldpr <- function(xx)
+{
+  ##########################################################################
+  #
+  # GOLDSTEIN-PRICE FUNCTION
+  #
+  # Authors: Sonja Surjanovic, Simon Fraser University
+  #          Derek Bingham, Simon Fraser University
+  # Questions/Comments: Please email Derek Bingham at dbingham@stat.sfu.ca.
+  #
+  # Copyright 2013. Derek Bingham, Simon Fraser University.
+  #
+  # THERE IS NO WARRANTY, EXPRESS OR IMPLIED. WE DO NOT ASSUME ANY LIABILITY
+  # FOR THE USE OF THIS SOFTWARE.  If software is modified to produce
+  # derivative works, such modified software should be clearly marked.
+  # Additionally, this program is free software; you can redistribute it 
+  # and/or modify it under the terms of the GNU General Public License as 
+  # published by the Free Software Foundation; version 2.0 of the License. 
+  # Accordingly, this program is distributed in the hope that it will be 
+  # useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+  # of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU 
+  # General Public License for more details.
+  #
+  # For function details and reference information, see:
+  # http://www.sfu.ca/~ssurjano/
+  #
+  ##########################################################################
+  #
+  # INPUT:
+  #
+  # xx = c(x1, x2)
+  #
+  ##########################################################################
+  
+  x1 <- xx[1]
+  x2 <- xx[2]
+  
+  fact1a <- (x1 + x2 + 1)^2
+  fact1b <- 19 - 14*x1 + 3*x1^2 - 14*x2 + 6*x1*x2 + 3*x2^2
+  fact1 <- 1 + fact1a*fact1b
+  
+  fact2a <- (2*x1 - 3*x2)^2
+  fact2b <- 18 - 32*x1 + 12*x1^2 + 48*x2 - 36*x1*x2 + 27*x2^2
+  fact2 <- 30 + fact2a*fact2b
+  
+  y <- fact1*fact2
+  return(y)
+}
+
+n <- 10
+expand.grid(0:n, 0:n) / n
+
+goldprSynthVars <- data.frame(rbind(rep(0, 2), randomLHS(n, 2), rep(1, 2)))
+goldprSynthObjFun <- goldpr(goldprSynthVars)
+goldprSynth <- data.frame(goldprSynthVars, goldprSynthObjFun)
+names(goldprSynth) <- c('x1', 'x2', 'objFun')
+
+goldprSynth %>%
+  ggplot(aes(x = x1, y = x2, z = objFun)) +
+  geom_density_2d() +
+  geom_text(aes(label = round(objFun, 1),
+                colour = objFun),
+            check_overlap = TRUE,
+            size = 3)
+
+goldprSynth %>%
+  ggplot(aes(x1, x2, z = objFun)) +
+  geom_contour() +
+  geom_text(aes(label = round(objFun, 1),
+                colour = objFun),
+            check_overlap = TRUE,
+            size = 3)
+
+goldprSynt %>%
+  filter(objFun == min(objFun))
+
+library(optimx)
+
+randGridSearch <- rbind(rep(0, 2), randomLHS(100, 2), rep(1, 2))
+
+randGridSearchRes <- sapply(1:nrow(randGridSearch), function(grdRow) {
+  stPar <- randGridSearch[grdRow,]
+  optRes <- optimx(stPar, goldpr, lower = 0, upper = 1)
+  c(stPar, optRes$value)
+  return(c(stPar, as.numeric(optRes[, c('p1', 'p2', 'value')])))
+}) %>% t()
+
+randGridSearchRes
+
+constraintFun <- function(xx)
+{
+  x1 <- xx[1]
+  x2 <- xx[2]
+  
+  return(3/2 - x1 - 2 * x2 - 1/2 * sin(2 * pi * (x1 ^ 2 - x2)))
+}
+
+goldprConstr <- constraintFun(goldprSynthVars)
+
+goldprSynth2 <- data.frame(goldprSynth, goldprConstr)
+names(goldprSynth2)[4] <- 'constr'
+
+goldprSynth2 <- goldprSynth2 %>%
+  mutate(constrBin = case_when(constr < 0 ~ -1,
+                              constr == 0 ~ 0,
+                              constr > 0 ~ 1))
+
+goldprSynth2 %>%
+  ggplot(aes(x = x1, y = x2, z = objFun)) +
+  geom_density_2d() +
+  geom_text(aes(label = round(objFun, 1),
+                colour = objFun),
+            check_overlap = TRUE,
+            size = 3) +
+  geom_raster(aes(fill = constrBin), interpolate = TRUE)
+
+
+goldprSynth2 %>%
+  ggplot(aes(x = x1, y = x2)) +
+  geom_density_2d() +
+  geom_text(aes(label = round(objFun, 1),
+                colour = objFun),
+            check_overlap = TRUE,
+            size = 3)
+
+
+
+goldprSynth2 %>%
+  ggplot() +
+  geom_tile()
