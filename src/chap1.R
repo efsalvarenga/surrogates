@@ -1,4 +1,4 @@
-# RSM (Chap 1)
+# Chap 1: RSM & computer experiments
 
 # chemical yield model
 yield <- function(xi1, xi2) 
@@ -40,7 +40,7 @@ g <- expand.grid(x1, x2)
 eta1 <- matrix(first.order(g[,1], g[,2]), ncol=length(x2))
 
 # views
-par(mfrow=c(1,2))
+  par(mfrow=c(1,2))
 persp(x1, x2, eta1, theta=30, phi=30, zlab="eta", expand=0.75, lwd=0.25)
 image(x1, x2, eta1, col=heat.colors(128))
 contour(x1, x2, matrix(eta1, ncol=length(x2)), add=TRUE)
