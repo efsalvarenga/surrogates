@@ -4,7 +4,9 @@
 library(dplyr)
 library(akima)
 library(ggplot2)
+library(laGP)
 
+# -------------------------------------------------------------------------------------------------
 # Rocket booster dynamics
 # The first, oldest version of the data was derived from a less reliable code implementing the solver.
 lgbb1 <- read.table("./data/lgbb/lgbb_original.txt", header=TRUE)
@@ -84,6 +86,7 @@ for(ub in unique(lgbb.b1$alpha)) {
   lines(lgbb.b1$mach[a], lgbb.b1$lift[a], type="l", lwd=2, col = colour) 
 }
 
+# -------------------------------------------------------------------------------------------------
 # University of Michigan’s Center for Radiative Shock Hydrodynamics (CRASH)
 
 # load field experiment data
@@ -126,7 +129,7 @@ fit <- lm(ShockLocation ~ ., data=crash[, u > 1])
 summary(fit)
 
 # Time mops up nearly all of the variability in these data 
-fit.time <- lm(ShockLocation ~ Time, data=crash)
+fit.time <- lm(ShockLocation ~ Time, data=crash[, u > 1])
 summary(fit.time)
 plot(crash$Time, crash$ShockLocation, xlab="time", ylab="location")
 abline(fit.time)
@@ -137,3 +140,62 @@ u.ce1 <- apply(ce1, 2, function(x) { length(unique(x)) })
 u.ce1
 fit.ce1 <- lm(ShockLocation ~ ., data=ce1[,u.ce1 > 1])
 summary(fit.ce1)
+
+# Figure  offers a view into how shock location varies with time
+# and (scaled) laser energy. The heat plot in the figure is
+# examining a linear interpolation of raw CE1 data
+x <- ce1$Time
+y <- ce1$LaserEnergy * ce1$EnergyScaleFactor
+g <- interp(x/max(x), y/max(y), ce1$ShockLocation, dupl="mean")
+image(g, col=heat.colors(128), xlab="scaled time", ylab="scaled energy")
+
+# Time and energy are useful for estimating location
+fit.te <- lm(ShockLocation ~ Time + LaserEnergy + Time * LaserEnergy, data=crash[, u > 1])
+summary(fit.te)
+
+# -------------------------------------------------------------------------------------------------
+# Predicting satellite drag
+# tpm repo available at https://bitbucket.org/gramacylab/tpm/src/master/
+
+# generating duplicate sample dataset
+n <- 8
+X <- data.frame(Umag=runif(n, 5500, 9500), Ts=runif(n, 100, 500), 
+                Ta=runif(n, 200, 2000), theta=runif(n, -pi, pi), 
+                phi=runif(n, -pi/2, pi/2), alphan=runif(n), sigmat=runif(n))
+X <- rbind(X,X)
+
+# mesh location for GRACE
+mesh <- "../gramacylab-tpm-5f42493808f6/tpm/Mesh_Files/GRACE_A0_B0_ascii_redone.stl"
+
+# sets up the atmospheric chemical composition as a unit-vector isolating pure helium (He)
+moles <- c(0,0,0,0,1,0) 
+
+# source the tpm function (I manually changed line 126 of the script)
+# compiling it is required before continuing
+source("../gramacylab-tpm-5f42493808f6/tpm/R/tpm.R")
+
+system.time(y <- tpm(X, moles=moles, stl=mesh, verb=0))
+
+mean((y[1:n] - y[(n + 1):length(y)])^2)
+
+# LANL’s GRACE runs for pure He
+train <- read.csv("../gramacylab-tpm-5f42493808f6/data/GRACE/CD_GRACE_1000_He.csv")
+test <- read.csv("../gramacylab-tpm-5f42493808f6/data/GRACE/CD_GRACE_100_He.csv")
+r <- apply(rbind(train, test)[,1:7], 2, range)
+r
+
+# Before fitting models, it helps to first convert to coded inputs.
+X <- train[,1:7]
+XX <- test[,1:7]
+for(j in 1:ncol(X)) {
+  X[,j] <- X[,j] - r[1,j]
+  XX[,j] <- XX[,j] - r[1,j]
+  X[,j] <- X[,j]/(r[2,j] - r[1,j])
+  XX[,j] <- XX[,j]/(r[2,j] - r[1,j])
+}
+
+fit.gp <- newGPsep(X, train[,8], 2, 1e-6, dK=TRUE)
+mle <- mleGPsep(fit.gp)
+p <- predGPsep(fit.gp, XX, lite=TRUE)
+rmspe <- sqrt(mean((100*(p$mean - test[,8])/test[,8])^2))
+rmspe
