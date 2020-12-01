@@ -86,6 +86,41 @@ for(ub in unique(lgbb.b1$alpha)) {
   lines(lgbb.b1$mach[a], lgbb.b1$lift[a], type="l", lwd=2, col = colour) 
 }
 
+# Homework exercises
+
+# Our rocket booster example in §2.1 emphasized the lift output. Repeat similar slice visuals,
+# for example like Figure 2.6, for the other five outputs. In each case you’ll need to choose
+# a value of the third input, beta, to hold fixed for the visualization.
+
+# a. Begin with the choice of beta=1 following the lift example. Comment on any trends or
+# variations across the five (or six including lift) outputs.
+
+# b. Experiment with other beta choices. In particular what happens when beta=0 for the latter
+# three outputs: side, yaw and roll? How about with larger beta settings for those outputs?
+# Explain what you think might be going on.
+par(mfrow=c(2,3))
+
+varNameVec <- names(lgbb.b1)[4:9]
+
+for (chosenBeta in unique(lgbb.fill$beta)){
+  lgbb.bX <- lgbb.fill[lgbb.fill$beta == chosenBeta, ]
+  for (varName in varNameVec) {
+    plot(lgbb.bX$mach, lgbb.bX[[varName]], type="n", xlab="mach", 
+         ylab=paste0(varName, " [beta=", chosenBeta, ']'))
+    for(ub in unique(lgbb.bX$alpha)) {
+      colour <- which(ub == unique(lgbb.bX$alpha))
+      a <- which(lgbb.bX$alpha == ub)
+      a <- a[order(lgbb.bX$mach[a])]
+      lines(lgbb.bX$mach[a], lgbb.bX[[varName]][a], type="l", lwd=2, col = colour) 
+    }
+  }
+}
+par(mfrow=c(1, 1))
+
+# beta=0 means there is no relative wind to the longitudinal axis of the aircraft
+# for this reason side force, yawl and roll are decreased to close to 0
+
+
 # -------------------------------------------------------------------------------------------------
 # University of Michigan’s Center for Radiative Shock Hydrodynamics (CRASH)
 
@@ -199,3 +234,54 @@ mle <- mleGPsep(fit.gp)
 p <- predGPsep(fit.gp, XX, lite=TRUE)
 rmspe <- sqrt(mean((100*(p$mean - test[,8])/test[,8])^2))
 rmspe
+
+# Groundwater remediation
+bvv <- read.csv("runlock/pato_results.csv")
+cols <- 3:14
+nc <- length(cols)
+matplot(bvv[1:1000,1], bvv[1:1000,cols], xlim=c(1,1500), type="l", bty="n",
+        xlab="number of evaluations", ylab="pump-and-treat cost to remediate",
+        lty=1:nc, col=1:nc)
+legend("topright", names(bvv)[cols], lty=1:nc, col=1:nc, bty="n")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
