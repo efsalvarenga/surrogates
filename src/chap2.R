@@ -5,6 +5,7 @@ library(dplyr)
 library(akima)
 library(ggplot2)
 library(laGP)
+library(olsrr)
 
 # -------------------------------------------------------------------------------------------------
 # Rocket booster dynamics
@@ -188,6 +189,52 @@ image(g, col=heat.colors(128), xlab="scaled time", ylab="scaled energy")
 fit.te <- lm(ShockLocation ~ Time + LaserEnergy + Time * LaserEnergy, data=crash[, u > 1])
 summary(fit.te)
 
+# Homework exercises
+
+# Revisit the CRASH simulation linear model/curve fitting analysis nearby Figure 2.10 by
+# expanding the data and the linear basis.
+
+# a. Form a data.frame combing CE1 data (ce1) and scale factor expanded CE2 data (ce2.sf),
+# and don’t forget to drop the FileNumber column.
+ceAll <- bind_rows(ce1, ce2.sf) %>%
+  select(-FileNumber, -EffectiveLaserEnergy)
+summary(ceAll)
+
+# b. Fit a linear model with ShockLocation as the response and the other columns as predictors.
+# Which predictors load (i.e., have estimated slope coefficients which are statistically
+# different from zero)?
+fit_CeAll01 <- lm(ShockLocation ~ ., data = ceAll)
+summary(fit_CeAll01)
+
+# c. Consider interactions among the predictors. Which load? Are there any collinearity
+# concerns? Fix those if so. You might try stepwise regression.
+ols_vif_tol(fit_CeAll01)
+
+fit_CeAll02 <- lm(ShockLocation ~ (.)^2, data = ceAll)
+summary(fit_CeAll02)
+ols_vif_tol(fit_CeAll02)
+
+
+fit_CeAll02_step1 <- stats::step(fit_CeAll02, scope = formula(fit_CeAll02), direction = 'backward',
+                         k = log(nrow(ceAll)), trace = 1)
+summary(fit_CeAll02_step1)
+ols_vif_tol(fit_CeAll02_step1)
+
+fit_CeAll02_step2 <- stats::step(fit_CeAll02, scope = formula(fit_CeAll02), direction = 'backward')
+summary(fit_CeAll02_step2)
+ols_vif_tol(fit_CeAll02_step2)
+
+fit_CeAll02_step3 <- stats::step(fit_CeAll02, scope = formula(fit_CeAll02))
+summary(fit_CeAll02_step3)
+ols_vif_tol(fit_CeAll02_step3)
+
+# c. Consider quadratic feature expansion (i.e., augment columns with squared terms) with
+# and without interactions. Again watch out for collinearity; try step and comment on what loads.
+
+# d. Contemplate higher-order polynomial terms as features. Does this represent a sensible,
+# parsimonious approach to nonlinear surrogate modeling?
+
+
 # -------------------------------------------------------------------------------------------------
 # Predicting satellite drag
 # tpm repo available at https://bitbucket.org/gramacylab/tpm/src/master/
@@ -243,45 +290,3 @@ matplot(bvv[1:1000,1], bvv[1:1000,cols], xlim=c(1,1500), type="l", bty="n",
         xlab="number of evaluations", ylab="pump-and-treat cost to remediate",
         lty=1:nc, col=1:nc)
 legend("topright", names(bvv)[cols], lty=1:nc, col=1:nc, bty="n")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
