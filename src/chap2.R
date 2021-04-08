@@ -329,10 +329,27 @@ if (!file.exists('./data/exb01Y.csv')) {
 # be careful to use the same coding scheme for all six sets of inputs; you may wish to double-check
 # your pure species predictors on the pure species testing sets provided.
 
+# get train and test datasets for pure species
+pureSpeciesFileNames <- list.files("../gramacylab-tpm-5f42493808f6/data/GRACE", ".csv")
+pureSpeciesFileNames <- grep('CD', pureSpeciesFileNames, value = TRUE)
+pureSpeciesFileNamesTrain <- grep('1000_', pureSpeciesFileNames, value = TRUE)
+pureSpeciesFileNamesTest <- grep('100_', pureSpeciesFileNames, value = TRUE)
 
+pureSpeciesTrainList <- sapply(pureSpeciesFileNamesTrain, function(filename) {
+  importedData <- read.csv(paste0("../gramacylab-tpm-5f42493808f6/data/GRACE/", filename)) %>%
+    select(Umag, Ts, Ta, theta, phi, alphan, sigmat, Cd, Cd_old)
+  return(importedData)
+}, simplify = FALSE, USE.NAMES = TRUE)
 
-
-
+pureSpeciesTrainListCoded <- sapply(pureSpeciesFileNamesTrain, function(filename) {
+  browser()
+  
+  pureSpeciesTrainList[[filename]]
+  
+  importedData <- read.csv(paste0("../gramacylab-tpm-5f42493808f6/data/GRACE/", filename)) %>%
+    select(Umag, Ts, Ta, theta, phi, alphan, sigmat, Cd, Cd_old)
+  return(importedData)
+}, simplify = FALSE, USE.NAMES = TRUE)
 
 
 
