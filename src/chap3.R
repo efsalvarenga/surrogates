@@ -133,3 +133,89 @@ text(0,-0.5, "design region", cex=0.5)
 points(xs[1], xs[2])
 text(xs[1], xs[2], "xs", pos=4)
 
+# example of chemical process (saddle topology)
+# load and massage data
+saddle <- read.table("data/saddle.txt", header=TRUE)
+saddle <- cbind(saddle[,-5]^2, 
+                model.matrix(~ .^2 - 1, saddle[,-5]), y=saddle[,5])
+names(saddle)[1:4] <- paste("x", 1:4, 1:4, sep="")
+names(saddle)[9:14] <- sub(":x", "", names(saddle)[9:14])
+saddle <- saddle[c(5:8,1:4,9:15)]
+
+# few useful features, proceed with caution
+fit <- lm(y ~ ., data=saddle)
+summary(fit)
+
+# extract coefficient main effects vector b
+# and matrix  B of second-order terms
+b <- coef(fit)[2:5]
+B <- matrix(NA, nrow=4, ncol=4)
+diag(B) <- coef(fit)[6:9]
+i <- 10
+for(j in 1:3) {
+  for(k in (j+1):4) {
+    B[j,k] <- B[k,j] <- coef(fit)[i]/2
+    i <- i + 1
+  }
+}
+
+# Using those coefficients, stationary point xs
+# may be calculated as follows.
+xs <- -(1/2)*solve(B, b)
+xs
+apply(saddle[,1:4], 2, range)
+
+# calculate eigenvalues
+E <- eigen(B)
+lambda <- E$values
+o <- order(abs(lambda), decreasing=TRUE)
+lambda <- lambda[o]
+lambda
+
+# choose mu
+mul <- max(lambda)
+x <- solve(B - mul*diag(4), -b/2)
+x
+
+# function to assist the search of a better mu
+f <- function(mu, R2=1) 
+{
+  x <- solve(B - mu*diag(4), -b/2)
+  R2 - t(x) %*% x
+}
+
+# find good mu
+mu <- uniroot(f, c(mul, 10*mul), R2=1.4^2)$root
+mu
+
+# define new x
+x <- solve(B - mu*diag(4), -b/2)
+x
+
+drop(sqrt(t(x) %*% x))
+
+mus <- rs <- seq(0.1, 2, length=20)
+xp <- matrix(NA, nrow=length(rs), ncol=4)
+colnames(xp) <- c("x1", "x2", "x3", "x4")
+for(i in 1:length(rs)) {
+  mus[i] <- uniroot(f, c(mul, 100*mul), R2=rs[i]^2)$root
+  xp[i,] <- solve(B - mus[i]*diag(4), -b/2)
+}
+xp <- rbind(rep(0,4), xp)
+rs <- c(0, rs)
+mus <- c(Inf, mus)
+
+Xp <- data.frame(xp)
+Xp <- cbind(Xp^2, model.matrix(~ .^2 - 1, Xp))
+names(Xp)[1:4] <- paste("x", 1:4, 1:4, sep="")
+names(Xp)[9:14] <- sub(":x", "", names(Xp)[9:14])
+Xp <- Xp[c(5:8,1:4,9:14)]
+
+p <- predict(fit, newdata=Xp, se.fit=TRUE)
+
+cbind(R=rs, mu=mus, data.frame(pred=p$fit, se=p$se.fit), round(xp,6))
+
+plot(rs, p$fit, type="b", ylim=c(20,100), xlab="radius (R)", 
+     ylab="y.hat(x) & 95% CIs")
+lines(rs, p$fit + 2*p$se, col=2, lty=2)
+lines(rs, p$fit - 2*p$se, col=2, lty=2)
