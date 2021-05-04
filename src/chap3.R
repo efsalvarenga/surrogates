@@ -81,3 +81,55 @@ lines(c(-Vxi[1,1], Vxi[1,1])+xis[1], c(-Vxi[2,1], Vxi[2,1])+xis[2], lty=2)
 lines(c(-Vxi[1,2], Vxi[1,2])+xis[1], c(-Vxi[2,2], Vxi[2,2])+xis[2], lty=2)
 points(xis[1], xis[2])
 text(xis[1], xis[2], "xs", pos=4)
+
+# -------------------------------------------------------------------------------------------------
+# Ridge analysis
+
+# get data and fit model
+rr <- read.table("data/risingridge.txt", header=TRUE)
+rr$A2 <- rr$A^2
+rr$B2 <- rr$B^2
+rr$AB <- rr$A*rr$B
+fit <- lm(y ~ ., data=rr)
+kable(summary(fit)$coefficients, 
+      caption="Linear model summary for rising ridge data.")
+
+# extract b and B, find xs
+b <- coef(fit)[2:3]
+B <- matrix(NA, nrow=2, ncol=2)
+diag(B) <- coef(fit)[4:5]
+B[1,2] <- B[2,1] <- coef(fit)[6]/2
+xs <- -(1/2)*solve(B, b)
+xs
+
+# bounds of design
+apply(rr[,1:2], 2, range)
+# so xs is outside the design
+
+# Eigenvalues analysis estimate xs as a maximum, but one is too close to zero
+E <- eigen(B)
+lambda <- E$values
+o <- order(abs(lambda), decreasing=TRUE)
+V <- E$vectors[,o]*20
+lambda <- lambda[o]
+lambda
+
+# canonical representation
+ys <- coef(fit)[1] + 0.5*t(xs) %*% b
+ys
+
+# visuals to support findings so far
+x <- seq(-6, 6, length=100)
+xx <- expand.grid(x, x)
+XX <- data.frame(A=xx[,1], B=xx[,2], A2=xx[,1]^2, 
+                 B2=xx[,2]^2, AB=xx[,1]*xx[,2])
+p <- predict(fit, newdata=XX)
+image(x, x, matrix(p, nrow=length(x)), col=cols, xlab="A", ylab="B")
+contour(x, x, matrix(p, nrow=length(x)), add=TRUE)
+lines(c(-V[1,1], V[1,1]) + xs[1], c(-V[2,1], V[2,1]) + xs[2], lty=2)
+lines(c(-V[1,2], V[1,2]) + xs[1], c(-V[2,2], V[2,2]) + xs[2], lty=2)
+polygon(c(1,1,-1,-1), c(1,-1,-1,1), lty=3)
+text(0,-0.5, "design region", cex=0.5)
+points(xs[1], xs[2])
+text(xs[1], xs[2], "xs", pos=4)
+
